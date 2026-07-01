@@ -7,8 +7,12 @@
 from __future__ import unicode_literals
 
 import json
-import urllib.request
-import http.cookiejar
+try:
+    import urllib.request as urllib_request
+    import http.cookiejar as http_cookiejar
+except ImportError:
+    import urllib2 as urllib_request
+    import cookielib as http_cookiejar
 import re
 from random import randint
 # noinspection PyUnresolvedReferences
@@ -325,13 +329,13 @@ def get_easybroadcast_stream(plugin, url):
         event_id = match.group('id')
 
         base_url = url.split('/events/')[0]
-        api_url = f'{base_url}/api/events/{event_id}'
+        api_url = '{}/api/events/{}'.format(base_url, event_id)
 
         metadata = json.loads(urlquick.get(api_url, max_age=-1).text)
 
         m3u8_url = metadata.get('stream')
         if metadata.get('token_authentication', False):
-            token_api_url = f'https://token.easybroadcast.io/all?url={m3u8_url}'
+            token_api_url = 'https://token.easybroadcast.io/all?url={}'.format(m3u8_url)
             token = urlquick.get(token_api_url, headers=GENERIC_HEADERS, max_age=-1).text.strip()
             m3u8_url = m3u8_url + '?' + token
 
@@ -359,8 +363,8 @@ def get_stream_dailymotion(plugin,
 
     # Workaround to fix error 403
     url_dmotion = URL_DAILYMOTION_EMBED_2 % video_id + '?embedder=%s' % embeder
-    cj = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    cj = http_cookiejar.CookieJar()
+    opener = urllib_request.build_opener(urllib_request.HTTPCookieProcessor(cj))
 
     headers = [
         ('User-Agent', web_utils.get_random_windows_ua()),
@@ -371,8 +375,11 @@ def get_stream_dailymotion(plugin,
     ]
     opener.addheaders = headers
 
-    with opener.open(url_dmotion) as res:
+    res = opener.open(url_dmotion)
+    try:
         json_parser = json.loads(res.read().decode('utf-8'))
+    finally:
+        res.close()
 
     if "qualities" not in json_parser:
         plugin.notify('ERROR', plugin.localize(30716))
@@ -385,12 +392,15 @@ def get_stream_dailymotion(plugin,
         for item in json_source:
             m_url = item.get('url')
             if source == "auto":
-                req = urllib.request.Request(m_url)
+                req = urllib_request.Request(m_url)
                 for k, v in headers:
                     req.add_header(k, v)
                 cj.add_cookie_header(req)
-                with opener.open(req) as res:
+                res = opener.open(req)
+                try:
                     mbtext = res.read().decode('utf-8')
+                finally:
+                    res.close()
 
                 mb = re.findall('NAME="([^"]+)",PROGRESSIVE-URI="([^"]+)"', mbtext)
                 if not mb:
