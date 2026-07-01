@@ -45,6 +45,26 @@ URL_LICENCE_KEY = 'https://drm-wide.tf1.fr/proxy?id=%s'
 
 GENERIC_HEADERS = {'User-Agent': web_utils.get_random_windows_ua()}
 
+
+def _detect_manifest_type(video_url, default='mpd'):
+    """Guess the InputStream Adaptive manifest type from the stream URL.
+
+    TF1's mediainfocombo API returns either a DASH (.mpd) or an HLS (.m3u8)
+    delivery URL depending on the requested profile. Hard-coding "mpd" makes
+    InputStream Adaptive try to parse an HLS playlist as DASH, which fails with
+    'Could not open / parse mpdURL (...index.m3u8)'. Detect it from the URL.
+    """
+    if not video_url:
+        return default
+    # Strip query string before looking at the extension
+    path = video_url.split('?', 1)[0].lower()
+    if '.m3u8' in path:
+        return 'hls'
+    if '.mpd' in path:
+        return 'mpd'
+    return default
+
+
 # videoId
 ACCOUNTS_LOGIN = "https://compte.tf1.fr/accounts.login"
 ACCOUNTS_BOOTSTRAP = "https://compte.tf1.fr/accounts.webSdkBootstrap"
@@ -512,7 +532,8 @@ def get_video_url(plugin,
         'User-Agent': web_utils.get_random_windows_ua()
     }
 
-    return resolver_proxy.get_stream_with_quality(plugin, video_url=video_url, manifest_type="mpd",
+    return resolver_proxy.get_stream_with_quality(plugin, video_url=video_url,
+                                                  manifest_type=_detect_manifest_type(video_url),
                                                   license_url=license_url, headers=license_headers)
 
 
@@ -566,6 +587,7 @@ def get_live_url(plugin, item_id, **kwargs):
         workaround = '1'
 
     return resolver_proxy.get_stream_with_quality(plugin, video_url=video_url,
-                                                  manifest_type="mpd", license_url=license_url,
+                                                  manifest_type=_detect_manifest_type(video_url),
+                                                  license_url=license_url,
                                                   workaround=workaround, headers=headers_video_stream,
                                                   custom_license_headers=license_headers)
