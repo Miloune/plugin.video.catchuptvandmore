@@ -41,3 +41,6 @@ Temporary Items
 
 # Kodi addon checker
 kodi-addon-checker-report.log
+
+# Packaged add-on zips
+plugin.video.catchuptvandmore-*.zip

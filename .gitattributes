@@ -1,3 +1,35 @@
+# --- Line endings ------------------------------------------------------------
+# Normalise all text files to LF in the repository. This prevents the whole
+# tree from showing up as "modified" when the working copy is checked out with
+# CRLF (e.g. from a Windows volume / WSL mount).
+* text=auto eol=lf
+
+# Explicitly treat source and text assets as LF text.
+*.py     text eol=lf
+*.xml    text eol=lf
+*.po     text eol=lf
+*.pot    text eol=lf
+*.json   text eol=lf
+*.txt    text eol=lf
+*.md     text eol=lf
+*.cfg    text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.sh     text eol=lf
+Makefile text eol=lf
+
+# Binary assets: never touch these (no EOL conversion, no diff).
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.zip    binary
+*.mp4    binary
+*.ttf    binary
+*.otf    binary
+
+# --- Export (git archive) ignores --------------------------------------------
 .github/ export-ignore
 .not_to_push/ export-ignore
 tools/ export-ignore
