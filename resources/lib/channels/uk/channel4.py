@@ -474,7 +474,7 @@ def get_video(plugin, programmeId, assetId, **kwargs):
     if access_token:  # Allows higher bitrate 1080p
         client = 'amazonfire-dash'
         url_video_json = URL_VOD_API.format(programme_id=programmeId, client=client)
-        headers = {"authorization": f"Bearer {access_token}"}
+        headers = {"authorization": "Bearer {}".format(access_token)}
     else:
         client = 'web'
         url_video_json = URL_VOD_WEB + '{}'.format(programmeId)
@@ -538,7 +538,7 @@ def get_live_url(plugin, item_id, **kwargs):
     if access_token:
         client = 'amazonfire-dash'
         url_video_json = URL_LIVE_API.format(item_id=item_id, client=client)
-        headers = {"authorization": f"Bearer {access_token}"}
+        headers = {"authorization": "Bearer {}".format(access_token)}
     else:
         client = 'web'
         url_video_json = URL_LIVE_WEB % item_id

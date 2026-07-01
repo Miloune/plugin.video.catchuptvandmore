@@ -155,7 +155,7 @@ def tv_guide_menu(plugin, item_id, **kwargs):
             # Title
             show_title = now_playing.get('title')
             if show_title:
-                item.info['title'] = f'{item.label}    [COLOR orange]{show_title}[/COLOR]'
+                item.info['title'] = '{}    [COLOR orange]{}[/COLOR]'.format(item.label, show_title)
 
             # Credits
             credits = []
@@ -174,7 +174,7 @@ def tv_guide_menu(plugin, item_id, **kwargs):
                 item.art["thumb"] = now_playing['icon']
 
             # Build plot from EPG of upcoming programmes, with a max of 12 programmes.
-            plot = '\n'.join(f"{pgm.get('start', '')} - {pgm.get('title', '')}" for pgm in guide_infos[:12])
+            plot = '\n'.join("{} - {}".format(pgm.get('start', ''), pgm.get('title', '')) for pgm in guide_infos[:12])
             item.info['plot'] = plot
 
         # Playcount is useless for live streams
