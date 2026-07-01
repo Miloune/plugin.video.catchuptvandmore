@@ -51,7 +51,8 @@ GENERIC_HEADERS = {"User-Agent": web_utils.get_random_ua()}
 def list_categories(plugin, item_id, **kwargs):
 
     if item_id == 'skynews':
-        yield from list_videos_news(plugin)
+        for _item in list_videos_news(plugin):
+            yield _item
 
     elif item_id == 'skysports':
 

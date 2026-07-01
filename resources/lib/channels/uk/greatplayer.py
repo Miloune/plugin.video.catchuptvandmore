@@ -59,7 +59,8 @@ def list_collection(plugin, url, **kwargs):
     collection_json = json.loads(urlquick.get(url, max_age=-1).text)
     if 'data' in collection_json:
         data = collection_json.get('data', [])
-        yield from data_to_listitem(data)
+        for _item in data_to_listitem(data):
+            yield _item
 
 
 @Route.register(content_type='videos')
@@ -72,7 +73,8 @@ def do_search(plugin, search_query):
     if search_json:
         if 'data' in search_json:
             data = search_json.get('data', [])
-            yield from data_to_listitem(data)
+            for _item in data_to_listitem(data):
+                yield _item
 
 
 def data_to_listitem(data):
