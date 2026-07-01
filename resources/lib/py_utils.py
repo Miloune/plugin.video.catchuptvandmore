@@ -15,8 +15,24 @@ import time
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
-    # python < 3.9
-    from backports.zoneinfo import ZoneInfo
+    try:
+        # python < 3.9
+        from backports.zoneinfo import ZoneInfo
+    except ImportError:
+        # python 2.7 (Kodi 18): neither zoneinfo nor backports.zoneinfo are
+        # available. Fall back to pytz, exposing the same ZoneInfo(name) API.
+        import pytz
+
+        def ZoneInfo(key):
+            """pytz-backed drop-in for zoneinfo.ZoneInfo on Python 2.7.
+
+            Raises ValueError for an unknown/empty time zone name so that
+            callers can handle it the same way as the stdlib implementation.
+            """
+            try:
+                return pytz.timezone(key)
+            except Exception:
+                raise ValueError(key)
 
 
 def old_div(a, b):
