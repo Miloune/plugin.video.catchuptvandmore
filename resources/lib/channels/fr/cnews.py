@@ -30,8 +30,12 @@ URL_VIDEOS_CNEWS = URL_ROOT_SITE + '/service/dm_loadmore/dm_emission_index_sujet
 
 GENERIC_HEADERS = {'User-Agent': web_utils.get_random_windows_ua()}
 
-URLLIB3_ADDON = xbmcaddon.Addon('script.module.urllib3')
-URLLIB3_VERSION = URLLIB3_ADDON.getAddonInfo('version')
+try:
+    URLLIB3_ADDON = xbmcaddon.Addon('script.module.urllib3')
+    URLLIB3_VERSION = URLLIB3_ADDON.getAddonInfo('version')
+except Exception:
+    # On Kodi 18 (Leia) the 'script.module.urllib3' addon is not installed.
+    URLLIB3_VERSION = None
 
 if URLLIB3_VERSION == "2.2.3":
     from urllib.request import urlopen, Request

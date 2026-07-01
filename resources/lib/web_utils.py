@@ -24,7 +24,10 @@ except ImportError:  # Python 2
     # noinspection PyUnresolvedReferences
     from urllib import unquote_plus
 
-from urllib.parse import urlparse, urlunparse
+try:
+    from urllib.parse import urlparse, urlunparse
+except ImportError:
+    from urlparse import urlparse, urlunparse
 
 if sys.version_info.major >= 3 and sys.version_info.minor >= 4:
     import html as html_parser

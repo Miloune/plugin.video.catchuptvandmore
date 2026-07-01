@@ -9,8 +9,12 @@ import re
 
 from codequick import Listitem, Resolver, Route
 import urlquick
-import urllib.request
-import http.cookiejar
+try:
+    import urllib.request as urllib_request
+    import http.cookiejar as http_cookiejar
+except ImportError:
+    import urllib2 as urllib_request
+    import cookielib as http_cookiejar
 import json
 
 from resources.lib import resolver_proxy, web_utils
@@ -104,12 +108,15 @@ def get_live_url(plugin, item_id, **kwargs):
         ('Referer', 'https://player.kick.com/'),
     ]
 
-    cj = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    cj = http_cookiejar.CookieJar()
+    opener = urllib_request.build_opener(urllib_request.HTTPCookieProcessor(cj))
     opener.addheaders = headers
 
-    with opener.open(URL_KICK_INFO) as resp:
+    resp = opener.open(URL_KICK_INFO)
+    try:
         json_parser = json.loads(resp.read().decode('utf-8'))
+    finally:
+        resp.close()
 
     video_url = json_parser['playback_url']
 

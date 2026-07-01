@@ -7,7 +7,11 @@
 from __future__ import unicode_literals
 import json
 import re
-import html
+try:
+    from html import unescape as html_unescape
+except ImportError:
+    from HTMLParser import HTMLParser
+    html_unescape = HTMLParser().unescape
 
 from codequick import Listitem, Resolver, Route
 import urlquick
@@ -50,7 +54,7 @@ def website_root(plugin, item_id, **kwargs):
             if 'emplacement' in picture:
                 if picture['emplacement'] == 'profil_carre':
                     image = picture['path'] + picture['declinaisons'][0]['file']
-        description = html.unescape(channel['description'].replace('<p>', '').replace('</p>', ''))
+        description = html_unescape(channel['description'].replace('<p>', '').replace('</p>', ''))
         count = channel['id']
         for onglets in channel['onglets']:
             if 'typeOnglet' in onglets:

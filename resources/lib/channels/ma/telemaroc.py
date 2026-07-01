@@ -12,7 +12,10 @@ import urlquick
 
 # noinspection PyUnresolvedReferences
 from codequick import Resolver
-from urllib.parse import urlparse
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
 from resources.lib import resolver_proxy, web_utils
 
 from resources.lib.kodi_utils import get_params_in_query
