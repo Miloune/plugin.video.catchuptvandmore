@@ -7,15 +7,24 @@
 from __future__ import unicode_literals
 
 import base64
-import html
+import calendar
 import json
 import re
 import requests
 import urlquick
 from codequick import Listitem, Resolver
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+import pytz
 from kodi_six import xbmcgui
-from urllib.parse import urlencode
+try:
+    from urllib.parse import urlencode
+except ImportError:
+    from urllib import urlencode
+try:
+    from html import unescape as html_unescape
+except ImportError:
+    from HTMLParser import HTMLParser
+    html_unescape = HTMLParser().unescape
 
 from resources.lib.kodi_utils import (INPUTSTREAM_PROP, get_selected_item_art,
                                       get_selected_item_info,
@@ -68,13 +77,13 @@ def get_manifest_and_pid(plugin, media_url, account, token):
     pid_match = re.search(r'(?<=\bpid=)[^|"]+', media_html)
 
     if manifest_match and pid_match:
-        manifest = html.unescape(manifest_match.group(1))
+        manifest = html_unescape(manifest_match.group(1))
         pid = pid_match.group(0)
         return manifest, pid
     return None, None
 
 
-def build_rte_list_item(plugin, media_url) -> Listitem:
+def build_rte_list_item(plugin, media_url):
     account = get_account()
     token = get_token()
 
@@ -86,7 +95,7 @@ def build_rte_list_item(plugin, media_url) -> Listitem:
     return get_the_platform_list_item(manifest, pid, account, token)
 
 
-def get_the_platform_list_item(manifest, pid, account, token) -> Listitem:
+def get_the_platform_list_item(manifest, pid, account, token):
     params = {
         "token": token,
         "account": account,
@@ -94,7 +103,7 @@ def get_the_platform_list_item(manifest, pid, account, token) -> Listitem:
         "schema": "1.0",
     }
 
-    license_url = f"{URL_LICENSE}?{urlencode(params)}"
+    license_url = "{}?{}".format(URL_LICENSE, urlencode(params))
 
     payload = json.dumps({
         "getWidevineLicense": {
@@ -113,11 +122,11 @@ def get_the_platform_list_item(manifest, pid, account, token) -> Listitem:
 
 
 def get_live_media_url(guid):
-    start_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    start_ms = calendar.timegm(datetime.now(pytz.UTC).utctimetuple()) * 1000
     end_ms = start_ms + int(timedelta(days=1).total_seconds() * 1000)
 
     params = {
-        "byListingTime": f"{start_ms}~{end_ms}"
+        "byListingTime": "{}~{}".format(start_ms, end_ms)
     }
 
     schedules_json = requests.get(URL_ALL_LIVE_SCHEDULES, headers=GENERIC_HEADERS, params=params).json()

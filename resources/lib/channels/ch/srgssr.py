@@ -116,7 +116,7 @@ def list_categories(plugin, item_id, **kwargs):
         item.label = Script.localize(30896)
         item_post_treatment(item)
         yield item
-        return False
+        return
 
     # Other categories (Info, Kids, ...)
     params = {'vector': 'TVPLAY', }
@@ -216,7 +216,8 @@ def list_videos_category(plugin, item_id, section_type, section_id, next_value=N
     elif section_type == 'ShowSection':
         url_videos_datas = URL_LIST_VIDEOS % (item_id, item_id[:3], 'show-section')
     else:
-        return False
+        yield False
+        return
 
     if next_value is not None:
         payload = {'sectionId': section_id, 'preview': 'false', 'next': next_value}
@@ -468,7 +469,7 @@ def get_final_video_url(plugin, video_assets, video_id):
         index = p.index("=")
         temp_params[p[0:index]] = quote(p[index + 1:], safe='')
     auth_params = '&'.join([
-        f'{k}={v}' for k, v in temp_params.items()
+        '{}={}'.format(k, v) for k, v in temp_params.items()
     ]).replace("~", "%7E")
 
     manifest += auth_params

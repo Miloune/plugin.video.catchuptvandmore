@@ -56,7 +56,7 @@ def to_yyyy_mm_dd(date):
     return None
 
 
-def fetch_editorial_page(page_alias: str, profile_folder: str):
+def fetch_editorial_page(page_alias, profile_folder):
     request_payload = {
         'pageAlias': page_alias,
         'profileFolder': profile_folder
@@ -327,7 +327,7 @@ def get_episodes_list(plugin, playlist_id, **kwargs):
 def generate_authorization(auth_params):
     # https://forum.videohelp.com/threads/414883-Help-download-videos-from-Shahid-MBC#post2739753
     t = 'z3qQSk17nbajIYUF0dU5f4+O/CxjFizcsEJr9ejOYFw='
-    i = ';'.join(f'{k}={v}' for k, v in sorted(auth_params.items()))
+    i = ';'.join('{}={}'.format(k, v) for k, v in sorted(auth_params.items()))
     return binascii.hexlify(hmac.new(t.encode('utf-8'), i.encode('utf-8'), hashlib.sha256).digest()).decode('utf-8')
 
 

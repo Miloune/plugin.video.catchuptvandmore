@@ -70,7 +70,7 @@ def list_programs(plugin, item_id, **kwargs):
 
 @Route.register
 def search(plugin, search_query, **kwargs):
-    r = urlquick.get(f"{URL_ROOT}/meta/api/search?q={search_query}&type=Video")
+    r = urlquick.get("{}/meta/api/search?q={}&type=Video".format(URL_ROOT, search_query))
     j = json.loads(r.text)
     for collection in j['item']:
         item = Listitem()
@@ -89,7 +89,8 @@ def list_sections(plugin, item_id, program_url, **kwargs):
     if item_id == "Shows":
         # Paid content
         Script.notify("INFO", "Not implemented", Script.NOTIFY_INFO)
-        return None
+        yield False
+        return
 
     resp = urlquick.get(program_url)
     root = resp.parse()

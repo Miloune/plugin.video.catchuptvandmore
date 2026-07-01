@@ -7,8 +7,9 @@ import re
 import json
 import base64
 import time
-import urllib.parse
-from datetime import datetime, timedelta, timezone
+from six.moves import urllib
+from datetime import datetime, timedelta
+import pytz
 
 import xbmc
 import xbmcgui
@@ -177,7 +178,8 @@ def list_main_page(plugin, **kwargs):
         list_submenu_my5,
         'My 5'
     )
-    yield from list_hero_items(plugin)
+    for _item in list_hero_items(plugin):
+        yield _item
     yield Listitem.from_dict(
         callback=list_collections,
         label='Collections',
@@ -196,7 +198,7 @@ def list_hero_items(plugin):
         for li in list_corona_collection('PLC_My5DesktopFeaturedRail'):
             if li:
                 title = li.label
-                li.info['title'] = f'[B][COLOR orange]{title}[/COLOR][/B]'
+                li.info['title'] = '[B][COLOR orange]{}[/COLOR][/B]'.format(title)
             yield li
     except Exception:
         # Do not allow an error in hero items to crash the whole channel
@@ -299,7 +301,8 @@ def list_collections(plugin, browse_name, **kwargs):
         w_params = {
             'limit': DFLT_PAGE_SIZE,
         }
-        yield from search_shows(plugin, w_params)
+        for _item in search_shows(plugin, w_params):
+            yield _item
         return
 
     resp = urlquick.get(FEEDS_API % browse_name, headers=GENERIC_HEADERS, params=feeds_api_params,
@@ -316,7 +319,8 @@ def list_collections(plugin, browse_name, **kwargs):
             'limit': DFLT_PAGE_SIZE,
             'vod_subgenres[]': filters.get('vod_subgenres')
         }
-        yield from search_shows(plugin, req_params)
+        for _item in search_shows(plugin, req_params):
+            yield _item
 
     elif items_type == 'Show':
         ids = filters.get('ids')
@@ -324,7 +328,8 @@ def list_collections(plugin, browse_name, **kwargs):
             'limit': len(ids),
             'ids[]': ids
         }
-        yield from search_shows(plugin, req_params)
+        for _item in search_shows(plugin, req_params):
+            yield _item
 
     elif items_type == 'Collection':
         try:
@@ -333,7 +338,7 @@ def list_collections(plugin, browse_name, **kwargs):
                 item.label = collection['title']
                 if collection.get('live'):
                     chan_id = collection['channel']
-                    item.art['thumb'] = BASE_IMG + f'/channel/{chan_id}/512x512.png'
+                    item.art['thumb'] = BASE_IMG + '/channel/{}/512x512.png'.format(chan_id)
                     item.set_callback(get_live_url, item_id=chan_id)
                     if chan_id.startswith('5-EVENTS-'):
                         add_special_live_event_info(item, chan_id)
@@ -352,7 +357,8 @@ def list_collections(plugin, browse_name, **kwargs):
 
     elif items_type == 'Watchable':
         ids = filters.get('ids')
-        yield from search_watchables(plugin, ids)
+        for _item in search_watchables(plugin, ids):
+            yield _item
     else:
         yield False
         return
@@ -416,7 +422,7 @@ def search_shows(plugin, params, offset=0):
         yield item
 
 
-def add_special_live_event_info(listitem: Listitem, chan_id):
+def add_special_live_event_info(listitem, chan_id):
     """Get additional info about a special events FAST channel.
 
     Will be used to display more useful info in the collection 'live channel',
@@ -426,8 +432,8 @@ def add_special_live_event_info(listitem: Listitem, chan_id):
     """
     try:
         strp_fmt = '%Y-%m-%dT%H:%M:%S.000Z'
-        now = datetime.now(timezone.utc)
-        resp = urlquick.get(url=CORONA_URL + f'channels/{chan_id}/epg.json?',
+        now = datetime.now(pytz.UTC)
+        resp = urlquick.get(url=CORONA_URL + 'channels/{}/epg.json?'.format(chan_id),
                             headers=GENERIC_HEADERS,
                             params={'start': now.strftime(strp_fmt),
                                     'end': (now + timedelta(days=1)).strftime(strp_fmt),
@@ -587,7 +593,7 @@ def parse_watchable(watchable, from_episode_list=False):
         item.label = show_title
         if season_nr:
             # This watchable is part of a series
-            title_line = f"series {watchable.get('sea_num', '')} - {title}"
+            title_line = "series {} - {}".format(watchable.get('sea_num', ''), title)
             # Create a context menu to go to episode's programme folder
             item.context.container(list_seasons,
                                    'View all episodes',
@@ -618,7 +624,8 @@ def parse_watchable(watchable, from_episode_list=False):
 
 @Route.register(content_type="videos")
 def do_search(plugin, search_query, **_):
-    yield from search_shows(plugin, {'query': search_query, 'limit': '20'})
+    for _item in search_shows(plugin, {'query': search_query, 'limit': '20'}):
+        yield _item
 
 
 def request_user_collection(collection_name, show_login_msg=True):
@@ -725,7 +732,7 @@ def edit_mylist(plugin, operation, show_id, show_title=None):
         method = 'delete'
         body = None
     else:
-        raise ValueError(f"[UK - Chan5] Invalid MyList edit operation '{operation}'.")
+        raise ValueError("[UK - Chan5] Invalid MyList edit operation '{}'.".format(operation))
 
     resp = urlquick.request(
         method=method,
@@ -780,8 +787,8 @@ def get_video_url(plugin, fname, season_f_name, show_id, standalone, **kwargs):
                               dash_manifest, re.DOTALL)
             if match:
                 # Construct the full url from the real base and the file name.
-                subs_url = '/'.join((video_url.rsplit('/', maxsplit=1)[0],
-                                     match[1]))
+                subs_url = '/'.join((video_url.rsplit('/', 1)[0],
+                                     match.group(1)))
 
         from resources.lib.prog_mon import start_progress_monitor
         plugin.register_delayed(start_progress_monitor,

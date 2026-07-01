@@ -9,9 +9,9 @@
 from __future__ import unicode_literals
 import base64
 import json
+import time
 from builtins import str
 import requests
-from datetime import datetime, timezone
 
 # noinspection PyUnresolvedReferences
 import xbmcvfs
@@ -119,7 +119,8 @@ def rtlplay_root(plugin, item_id, **kwargs):
 @Route.register
 def list_videos_search(plugin, search_query, item_id, page, **kwargs):
     if search_query is None or len(search_query) == 0:
-        return False
+        yield False
+        return
 
     resp = urlquick.get(URL_LFVP_API + '/RTL_PLAY/search?query=' + search_query, headers=RTLPLAY_HEADERS, max_age=-1).content.decode()
     json_parser = json.loads(resp)
@@ -266,8 +267,10 @@ def is_valid_token():
 
         # Check expiration time
         lfvp_access_token_b64 = json.loads(b64str)
-        exp = round(datetime.fromtimestamp(lfvp_access_token_b64.get('exp'), tz=timezone.utc).timestamp())
-        now = round(datetime.now(timezone.utc).timestamp())
+        # 'exp' is already a Unix timestamp (seconds since epoch); comparing it
+        # against the current epoch time avoids Python 3-only datetime helpers.
+        exp = round(lfvp_access_token_b64.get('exp'))
+        now = round(time.time())
 
         if exp > now:
             return LOGIN_TOKEN

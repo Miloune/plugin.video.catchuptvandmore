@@ -8,7 +8,10 @@ import itertools
 import json
 import re
 
-from urllib.parse import urlencode
+try:
+    from urllib.parse import urlencode
+except ImportError:
+    from urllib import urlencode
 
 from codequick import Listitem, Resolver, Route
 import urlquick
@@ -143,10 +146,10 @@ def params_from_x_data(x_data):
 def path_from_x_data(x_data):
     """Return the path of a RenderableComponent"""
     match = re.search(r"render\(\s*'([^']+)'", x_data)
-    return match[1]
+    return match.group(1)
 
 
-def renderable_url(component_div) -> str:
+def renderable_url(component_div):
     """Build a full url to the renderable slider content from several attributes of the div."""
     x_data = component_div.get("x-data")
     query_string = urlencode(params_from_x_data(x_data))
@@ -166,11 +169,11 @@ def parse_item_div(video_item):
 
     """
     x_data = video_item.find('*/a').get('x-data')
-    video_url = re.search(r"href: '([^']+)',", x_data)[1]
+    video_url = re.search(r"href: '([^']+)',", x_data).group(1)
 
     # A playable's path contains its unique video ID and starts with '/watch'.
     match = re.search(r"/watch/vod/(\d+)/", video_url)
-    uvid = match[1] if match else None
+    uvid = match.group(1) if match else None
 
     card = video_item.find(".//div[@class='rounded overflow-hidden']")
     video_img = card.find('.//img').get('src')
@@ -301,7 +304,8 @@ def list_page(plugin, url, fallback_url=None, **_):
         # Some collection pages, like collection LEGEND, do not have the
         # regular page structure. Request the original slider content if
         # the page failed.
-        yield from list_renderable_component(plugin, fallback_url, **_)
+        for _item in list_renderable_component(plugin, fallback_url, **_):
+            yield _item
 
 
 @Route.register(redirect_single_item=True, content_type="videos")
@@ -324,7 +328,7 @@ def list_series(plugin, url, **_):
 def list_episodes(plugin_, url, series, **_):
     """List the individual episodes of a series page"""
     root = fetch(url)
-    series_div = root.find(f".//div[@id='{series}']")
+    series_div = root.find(".//div[@id='{}']".format(series))
     for episode_div in series_div.iterfind(".//div[@class='row py-5']"):
         video_img = episode_div.find('.//img').get('src')
         data_span = episode_div.find(".//span[@class='d-none']")
