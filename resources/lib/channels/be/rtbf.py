@@ -199,7 +199,8 @@ def main_list_programs(plugin, item_id, category_url, category_id, **kwargs):
         max_age=-1
     )
     if not response and response.status_code != 200:
-        return None
+        yield False
+        return
 
     json_parser = response.json()
     if 'pageType' in json_parser['data']:
@@ -524,7 +525,7 @@ def yield_video_data(item_id, video_data, found_result):
         is_drm = False
 
     if video_url is None:
-        return False
+        return
 
     item = Listitem()
     item.label = video_title

@@ -150,7 +150,7 @@ def list_episodes(plugin, video, season, **kwargs):
                 item_post_treatment(item)
                 yield item
 
-    return False
+    return
 
 
 @Resolver.register

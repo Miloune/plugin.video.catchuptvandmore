@@ -85,7 +85,8 @@ def website_root(plugin, item_id, **kwargs):
 
     if "PersistedQueryNotFound" in query.text:
         plugin.notify(plugin.localize(30600), plugin.localize(30716))
-        return False
+        yield False
+        return
 
     categories = json_parser['data']['genericVideoPlaylists']['summary'].split(',')
 
@@ -97,7 +98,8 @@ def website_root(plugin, item_id, **kwargs):
 
     if "PersistedQueryNotFound" in playlists_query.text:
         plugin.notify(plugin.localize(30600), plugin.localize(30716))
-        return False
+        yield False
+        return
 
     json_parser2 = playlists_query.json()
     for anywork in json_parser2['data']['anyWorks']:
@@ -128,7 +130,8 @@ def list_videos(plugin, item_id, playlistid, cursor="", **kwargs):
 
     if "PersistedQueryNotFound" in query.text:
         plugin.notify(plugin.localize(30600), plugin.localize(30716))
-        return False
+        yield False
+        return
 
     videos_jsonparser = query.json()
 

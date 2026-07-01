@@ -132,7 +132,8 @@ def list_videos_search(plugin, search_query, item_id, page, **kwargs):
         "onlyPublished": "true"
     }
     if search_query is None or len(search_query) == 0:
-        return False
+        yield False
+        return
 
     resp = urlquick.get(SEARCH_API % search_query, params=params, headers=headers)
     items = resp.json()["items"]
@@ -240,7 +241,8 @@ def list_seasons(plugin, item_id, program_asset_id, **kwargs):
 
     if "PersistedQueryNotFound" in resp.text:
         plugin.notify(plugin.localize(30600), plugin.localize(30716))
-        return False
+        yield False
+        return
 
     params2 = {
         'operationName': 'VODContentSeasons',
@@ -253,7 +255,8 @@ def list_seasons(plugin, item_id, program_asset_id, **kwargs):
 
     if "PersistedQueryNotFound" in resp2.text:
         plugin.notify(plugin.localize(30600), plugin.localize(30716))
-        return False
+        yield False
+        return
 
     for season_data in json_parser2["data"]["lookupContent"]["seasons"]["items"]:
         season_title = 'Season %s' % str(season_data["seasonNumber"])
@@ -290,7 +293,8 @@ def list_videos_of_season(plugin, item_id, season_id, **kwargs):
 
     if "PersistedQueryNotFound" in resp.text:
         plugin.notify(plugin.localize(30600), plugin.localize(30716))
-        return False
+        yield False
+        return
 
     for video_data in json_parser["data"]["lookupContent"]["episodes"]["items"]:
         video_title = 'Episode %s' % str(video_data["episodeNumber"])
@@ -330,7 +334,8 @@ def list_video_movie(plugin, item_id, program_asset_id, **kwargs):
 
     if "PersistedQueryNotFound" in resp.text:
         plugin.notify(plugin.localize(30600), plugin.localize(30716))
-        return False
+        yield False
+        return
 
     video_data = json_parser["data"]["lookupContent"]
 

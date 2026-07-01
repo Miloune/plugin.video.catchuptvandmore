@@ -33,7 +33,8 @@ def list_lives(plugin, item_id, **kwargs):
     channels = root.findall(".//div[@data-media-type='SectionItem']")
 
     if len(channels) == 0:
-        return False
+        yield False
+        return
 
     for channel in channels:
 

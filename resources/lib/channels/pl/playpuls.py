@@ -20,7 +20,8 @@ GENERIC_HEADERS = {'User-Agent': web_utils.get_random_ua()}
 def list_programs(plugin, item_id, **kwargs):
     resp = urlquick.get(URL_REPLAY + URL_PATH_KIDS, headers=GENERIC_HEADERS, max_age=-1)
     if resp.status_code != 200:
-        return False
+        yield False
+        return
     html_programs = resp.parse()
     categories = html_programs.findall('.//div[@id="category-list"]/div/a')
     for cat in categories:
@@ -45,7 +46,8 @@ def list_programs(plugin, item_id, **kwargs):
 def list_episodes(plugin, serial_path, serial_name, serial_image_url):
     resp = urlquick.get(URL_REPLAY + serial_path, headers=GENERIC_HEADERS, max_age=-1)
     if resp.status_code != 200:
-        return False
+        yield False
+        return
     html_serial = resp.parse()
 
     episodes = html_serial.findall('.//div[@class="tvshow__item"]/a')

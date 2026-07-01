@@ -210,7 +210,8 @@ def sixplay_root(plugin, **kwargs):
 @Route.register
 def search(plugin, search_query, **kwargs):
     if search_query is None or len(search_query) == 0:
-        return False
+        yield False
+        return
 
     params = {
         'x-algolia-agent': 'Algolia for JavaScript (4.24.0); Browser',

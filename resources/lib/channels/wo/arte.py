@@ -112,7 +112,8 @@ def list_zone(plugin, url):
 @Route.register
 def list_videos_search(plugin, search_query, **kwargs):
     if search_query is None or len(search_query) == 0:
-        return False
+        yield False
+        return
 
     params = {
         'query': search_query,

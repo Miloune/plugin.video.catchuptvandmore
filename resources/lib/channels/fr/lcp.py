@@ -105,7 +105,8 @@ def list_categories(plugin, item_id, **kwargs):
 @Route.register(autosort=False)
 def list_videos_search(plugin, search_query, item_id, type_de_contenu, page, **kwargs):
     if search_query is None or len(search_query) == 0:
-        return False
+        yield False
+        return
 
     params = {
         'search_api_fulltext': search_query,
