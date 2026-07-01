@@ -26,13 +26,8 @@ watching'.
 
 """
 
-from __future__ import annotations
-
 import time
 import logging
-from enum import Enum
-from dataclasses import dataclass
-from collections.abc import Callable
 
 from xbmc import Player, Monitor
 
@@ -43,15 +38,26 @@ from codequick.support import logger_id
 logger = logging.getLogger('.'.join((logger_id, __name__.split('.', 2)[-1])))
 
 
-class PlayState(Enum):
+# time.monotonic() only exists on Python 3.3+. Fall back to time.time() on
+# Python 2.7 (Kodi 18). time.time() can jump if the system clock changes, but
+# that is an acceptable trade-off for the progress heartbeat timing.
+_monotonic = getattr(time, 'monotonic', time.time)
+
+
+class PlayState(object):
+    """Constants indicating the play state of a stream.
+
+    Implemented as a plain class with integer constants rather than an
+    ``enum.Enum`` so it works on Python 2.7 (Kodi 18) without the ``enum34``
+    backport.
+    """
     UNDEFINED = 0
     PLAYING = 1
     PAUSED = 2
     STOPPED = 3
 
 
-@dataclass
-class ProgressEvent:
+class ProgressEvent(object):
     """An object that contains the play state of a video.
 
     ProgressEvent objects are created by ProgressMonitor when playing starts,
@@ -63,7 +69,7 @@ class ProgressEvent:
         - 'initialize' when the video is about to start playing.
         - 'heartbeat' at regular intervals while the video plays.
         - 'stopped' when the video has stopped playing.
-    - playtime (float):
+    - play_time (float):
         The current play position of the video in seconds.
     - total_time (float):
         The length of the video in seconds.
@@ -72,10 +78,12 @@ class ProgressEvent:
         is playing, paused, or stopped
 
     """
-    evt_type: str
-    play_time: float
-    total_time: float
-    play_state: PlayState
+
+    def __init__(self, evt_type, play_time, total_time, play_state):
+        self.evt_type = evt_type
+        self.play_time = play_time
+        self.total_time = total_time
+        self.play_state = play_state
 
     @property
     def time_left(self):
@@ -101,10 +109,10 @@ class ProgressMonitor(Player):
     POLL_PERIOD = 1
 
     def __init__(self,
-                 stream_url: str = None,
-                 callback: Callable[..., bool] = None,
-                 callb_kwargs: dict = None,
-                 heartbeat_interval: int | float = 20):
+                 stream_url=None,
+                 callback=None,
+                 callb_kwargs=None,
+                 heartbeat_interval=20):
         """
 
         :param callback: The function that will be invoked at each event.
@@ -139,7 +147,7 @@ class ProgressMonitor(Player):
         """The URL of the stream being tracked."""
         return self._strm_url
 
-    def onAVStarted(self) -> None:
+    def onAVStarted(self):
         # noinspection PyBroadException
         if self._status is not PlayState.UNDEFINED:
             logger.debug("onAvStarted - ProgressMonitor is already initialised")
@@ -165,7 +173,7 @@ class ProgressMonitor(Player):
             self._playtime = 0
             self._status = PlayState.STOPPED
 
-    def onAVChange(self) -> None:
+    def onAVChange(self):
         if self._status != PlayState.UNDEFINED:
             # There can be a multitude of av changes before one file stops and another has started
             return
@@ -177,43 +185,43 @@ class ProgressMonitor(Player):
             logger.debug("onAvChange: playing has stopped. Now playing file '%s'", playing_file)
             self.onPlayBackStopped()
 
-    def onPlayBackStopped(self) -> None:
+    def onPlayBackStopped(self):
         cur_state = self._status
         self._status = PlayState.STOPPED
         if cur_state in (PlayState.UNDEFINED, PlayState.STOPPED):
             return
         self.issue_event('stopped')
 
-    def onPlayBackEnded(self) -> None:
+    def onPlayBackEnded(self):
         self.onPlayBackStopped()
 
-    def onPlayBackError(self) -> None:
+    def onPlayBackError(self):
         self.onPlayBackStopped()
 
     # noinspection PyShadowingNames,PyPep8Naming
-    def onPlayBackSeek(self, time: int, seekOffset: int) -> None:
+    def onPlayBackSeek(self, time, seekOffset):
         if time / 1000 > self._totaltime - 10:
             # Skipped to or beyond the end of the stream.
             self._playtime = self._totaltime
             self.onPlayBackStopped()
 
-    def wait_until_playing(self, timeout: int | float) -> bool:
+    def wait_until_playing(self, timeout):
         """Wait and return `True` when the player has started playing.
 
         Return `False` when `timeout` expires, or when playing has been
         aborted before the actual playing started.
 
         """
-        end_t = time.monotonic() + timeout
+        end_t = _monotonic() + timeout
         while self._status is PlayState.UNDEFINED:
-            if time.monotonic() >= end_t:
+            if _monotonic() >= end_t:
                 return False
             if self.monitor.waitForAbort(0.2):
                 logger.debug("wait_until_playing ended: abort requested")
                 return False
         return self._status is not PlayState.STOPPED
 
-    def monitor_progress(self) -> None:
+    def monitor_progress(self):
         """Wait while the player is playing and return when playing the file
         has stopped.
 
@@ -223,7 +231,7 @@ class ProgressMonitor(Player):
         if self._status is PlayState.UNDEFINED:
             return
         logger.debug("ProgressMonitor started")
-        next_hbt_t = time.monotonic() + self._hbt_interval
+        next_hbt_t = _monotonic() + self._hbt_interval
         while not (self.monitor.waitForAbort(self.POLL_PERIOD)
                    or self._status is PlayState.STOPPED):
             try:
@@ -231,7 +239,7 @@ class ProgressMonitor(Player):
             except RuntimeError:  # Player just stopped playing
                 self.onPlayBackStopped()
                 break
-            if time.monotonic() >= next_hbt_t:
+            if _monotonic() >= next_hbt_t:
                 next_hbt_t += self._hbt_interval
                 self.issue_event('heartbeat')
         logger.info("ProgressMonitor stopped")
@@ -252,11 +260,11 @@ class ProgressMonitor(Player):
             pass
 
 
-def start_progress_monitor(callback: Callable[..., bool],
-                           callb_kwargs: dict = None,
-                           video_url: str = None,
-                           heartbeat_interval: int | float = 20,
-                           max_startup_time: int | float = 15):
+def start_progress_monitor(callback,
+                           callb_kwargs=None,
+                           video_url=None,
+                           heartbeat_interval=20,
+                           max_startup_time=15):
     """Start tracking playing progress.
 
     This convenience function creates an instance of ProgressMonitor, waits for
