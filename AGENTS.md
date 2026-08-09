@@ -120,6 +120,71 @@ rg -n "\.timestamp\(\)|timezone\.utc" --type py .         # datetime py3
 > sont **pas** des erreurs : ces chaînes fonctionnent sur Python 2.7. Ne pas
 > les « corriger » sauf demande explicite (bruit de diff massif).
 
+## Synchronisation avec l'amont (merge + rétro-portage)
+
+Pour récupérer les correctifs de `Catch-up-TV-and-More` (nouveaux fixes de
+chaînes, etc.) tout en conservant les contraintes Python 2.7, **ne pas** cueillir
+les commits un par un : **merger** la branche amont puis **re-porter** le code
+Python 3 introduit. Procédure éprouvée :
+
+1. **Sauvegarder les patches locaux propres au fork** avant de merger, car un
+   conflit peut les écraser. En particulier le patch `preferred_video_codec`
+   (dans `6play.py` et `resolver_proxy.py`). Générer un diff temporaire (hors
+   dépôt) à réappliquer ensuite :
+
+   ```sh
+   git diff HEAD -- resources/lib/channels/fr/6play.py \
+       resources/lib/resolver_proxy.py > /tmp/fork_patches.diff
+   ```
+
+2. **Récupérer et merger l'amont** (le remote `origin` pointe sur le dépôt
+   upstream, `Miloune` sur le fork) :
+
+   ```sh
+   git fetch origin
+   git merge --no-commit --no-ff origin/dev
+   ```
+
+   Le `--no-commit` permet d'auditer et de re-porter **avant** de figer le merge.
+
+3. **Résoudre les conflits** en gardant à l'esprit la cible py2.7 :
+   - Préférer la **version amont** pour la logique métier (nouveaux fixes), puis
+     rétro-porter la syntaxe py3 qu'elle introduit (étape 5).
+   - Garder la **version du fork (HEAD)** quand elle porte une adaptation Kodi 18
+     déjà faite (ex. le garde `URLLIB3_VERSION` de `cnews.py`, les blocs
+     `try/except ImportError` sur `urllib`).
+
+4. **Réappliquer les patches du fork** sauvegardés à l'étape 1 (le diff temporaire
+   n'est **pas** versionné — c'est un artefact de session) :
+
+   ```sh
+   git apply /tmp/fork_patches.diff   # ou réappliquer les hunks à la main
+   ```
+
+5. **Re-porter en Python 2.7** tout le code amont nouvellement introduit, en
+   appliquant les règles du tableau ci-dessus. L'audit AST est la source de
+   vérité — il liste précisément les fichiers/lignes à corriger :
+
+   ```sh
+   python3 tools/py27_audit.py resources/     # -> corriger jusqu'à « 0 issue »
+   ```
+
+   Compléter par l'audit sémantique que l'AST **ne voit pas** : les imports
+   `urllib.parse/request` et `http.cookiejar` doivent tous rester gardés par un
+   `try/except ImportError` (grep sur les fichiers du merge), et aucun fichier
+   supprimé par l'amont ne doit subsister.
+
+6. **Committer le merge** en ne stageant **que** les fichiers effectivement
+   touchés (résolutions de conflit + re-portages) :
+
+   ```sh
+   git add <fichiers modifiés> && git commit
+   ```
+
+> Un fichier **supprimé** par l'amont (ex. `weo.py`) doit aussi être retiré de
+> l'appareil (`.py` **et** `.pyc`) lors du déploiement, sinon un module fantôme
+> subsiste.
+
 ## Packaging & déploiement
 
 - Le plugin se package en `.zip` (structure `plugin.video.catchuptvandmore/...`).
@@ -179,10 +244,27 @@ adb push <zip> /sdcard/Download/
 - Les fichiers de l'addon installé se trouvent sur l'appareil dans :
   `/sdcard/Android/data/org.xbmc.kodi/files/.kodi/addons/plugin.video.catchuptvandmore/`
 
-## Note sur les fins de ligne
+### Déploiement incrémental (push direct des fichiers modifiés)
 
-Le dépôt est monté depuis un volume Windows (`/mnt/d/...`). `git status` peut
-signaler l'ensemble des fichiers comme « modifiés » à cause d'une conversion
-CRLF ↔ LF. Ces différences sont du bruit (vérifiable avec
-`git diff --ignore-all-space`) et ne doivent pas être confondues avec les
-modifications fonctionnelles de rétro-portage.
+Pour un petit lot de fichiers (ex. après un merge), l'install par zip est
+superflue : pousser directement les fichiers modifiés dans le dossier de l'addon
+installé. **Toujours `rm -f` le fichier de l'appareil AVANT le `push`**, sinon un
+fichier plus court laisse des débris en fin de fichier (déjà provoqué un
+`IndentationError`). Pousser depuis les **blobs committés** (`git show <rev>:path`)
+garantit du LF propre, sans bruit CRLF du montage Windows.
+
+```sh
+DEV=/sdcard/Android/data/org.xbmc.kodi/files/.kodi/addons/plugin.video.catchuptvandmore
+for f in <fichiers modifiés>; do
+  adb shell "rm -f '$DEV/$f' '${DEV}/${f}c'"      # .py + .pyc
+  adb push "$f" "$DEV/$f"
+done
+# purger tous les .pyc résiduels de l'arbre (Android find n'a pas -delete) :
+adb shell "find '$DEV' -name '*.pyc' -exec rm -f {} \;"
+adb shell "am force-stop org.xbmc.kodi" && sleep 2
+adb shell "am start -n org.xbmc.kodi/.Splash"
+```
+
+Vérifier par `md5sum` des deux côtés, puis contrôler le log de démarrage
+(`.kodi/temp/kodi.log`) — absence de `Traceback`/`SyntaxError`/`ImportError` et
+version d'addon attendue dans les lignes `ADDON: ... installed`.
