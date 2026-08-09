@@ -291,6 +291,13 @@ def get_stream_with_quality(plugin,
             item.property['inputstream.adaptive.server_certificate'] = input_stream_properties[
                 "server_certificate"]
 
+        # Custom property (patched InputStream Adaptive on Kodi 18): prefer a
+        # specific video codec (e.g. 'h264') so HEVC streams are ignored. Needed
+        # for 6play replay on Amlogic/Android 6 where HEVC crashes the decoder.
+        if "preferred_video_codec" in input_stream_properties:
+            item.property['inputstream.adaptive.preferred_video_codec'] = input_stream_properties[
+                "preferred_video_codec"]
+
     if subtitles is not None:
         item.subtitles.append(subtitles)
 
@@ -320,7 +327,7 @@ def get_stream_kaltura(plugin,
     return get_stream_default(plugin, video_url, download_mode)
 
 
-def get_easybroadcast_stream(plugin, url):
+def get_easybroadcast_event_stream(plugin, url):
     EASY_BROADCAST_EVENT_URL_REG_EX = (
         r'https?://(?:[\w\-]+\.)?player\.easybroadcast\.io/events/(?P<id>[\w\-]+)'
     )
@@ -334,18 +341,23 @@ def get_easybroadcast_stream(plugin, url):
         metadata = json.loads(urlquick.get(api_url, max_age=-1).text)
 
         m3u8_url = metadata.get('stream')
-        if metadata.get('token_authentication', False):
-            token_api_url = 'https://token.easybroadcast.io/all?url={}'.format(m3u8_url)
-            token = urlquick.get(token_api_url, headers=GENERIC_HEADERS, max_age=-1).text.strip()
-            m3u8_url = m3u8_url + '?' + token
+        token_authentication = metadata.get('token_authentication', False)
+        return get_easybroadcast_m3u8_stream(plugin, m3u8_url, token_authentication)
+    return None
 
-            m3u8 = M3u8(m3u8_url)
-            url_quality, bitrate = m3u8.get_url_and_bitrate_for_quality()
-            # https://snrtlive.ma playlists don't include the token in the quality url & needs to be manually added back
-            if 'token' not in url_quality:
-                m3u8_url = url_quality + '?' + token
 
-        return get_stream_with_quality(plugin, video_url=m3u8_url)
+def get_easybroadcast_m3u8_stream(plugin, m3u8_url, token_authentication):
+    if token_authentication:
+        token_api_url = 'https://token.easybroadcast.io/all?url={}'.format(m3u8_url)
+        token = urlquick.get(token_api_url, max_age=-1).text.strip()
+        m3u8_url = m3u8_url + '?' + token
+
+        m3u8 = M3u8(m3u8_url)
+        url_quality, bitrate = m3u8.get_url_and_bitrate_for_quality()
+        # https://snrtlive.ma playlists don't include the token in the quality url & needs to be manually added back
+        if 'token' not in url_quality:
+            m3u8_url = url_quality + '?' + token
+    return get_stream_with_quality(plugin, video_url=m3u8_url)
 
 
 # DailyMotion Part
@@ -445,21 +457,23 @@ def get_stream_vimeo(plugin,
     url_vimeo = URL_VIMEO_BY_ID % video_id
 
     if referer is not None:
-        html_vimeo = urlquick.get(url_vimeo,
-                                  headers={
-                                      'User-Agent': web_utils.get_random_windows_ua(),
-                                      'Referer': referer
-                                  },
-                                  max_age=-1)
+        headers = {
+            'User-Agent': web_utils.get_random_windows_ua(),
+            'Referer': referer
+        }
     else:
-        html_vimeo = urlquick.get(
-            url_vimeo,
-            headers={'User-Agent': web_utils.get_random_windows_ua()},
-            max_age=-1)
-    json_vimeo = json.loads(
-        '{' +
-        re.compile('var config = \{(.*?)};').findall(html_vimeo.text)[0] +
-        '}')
+        headers = GENERIC_HEADERS
+
+    resp = urlquick.get(url_vimeo, headers=headers, max_age=-1)
+    root = resp.parse()
+
+    for script in root.iterfind(".//script"):
+        if (script.text is not None) and ('window.playerConfig = ' in script.text):
+            text = script.text
+            start = text.find('{', text.find('window.playerConfig ='))
+            end = text.rfind('}')
+            json_vimeo = json.loads(text[start:end + 1])
+
     hls_json = json_vimeo["request"]["files"]["hls"]
     default_cdn = hls_json["default_cdn"]
     final_video_url = hls_json["cdns"][default_cdn]["url"]

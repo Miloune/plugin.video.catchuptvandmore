@@ -78,6 +78,7 @@ URL_COMPTE_LOGIN = 'https://login-gigya.m6.fr/accounts.login'
 # TODO get value Callback
 # callback: jsonp_3bbusffr388pem4
 
+# Id
 API_KEY = "3_hH5KBv25qZTd_sURpixbQW6a4OsiIzIEF2Ei_2H7TXTGLJb_1Hr4THKZianCQhWK"
 
 URL_TOKEN_REPLAY = 'https://drm.6cloud.fr/v1/customers/m6web/platforms/m6group_web/services/m6replay/users/%s/videos/%s/upfront-token'
@@ -512,7 +513,12 @@ def get_video_url(plugin, item_id, video_id, download_mode=False, **kwargs):
     if final_video_url is not None:
         return resolver_proxy.get_stream_with_quality(
             plugin, video_url=final_video_url, manifest_type='mpd',
-            subtitles=subtitle_url, license_url=URL_LICENCE_KEY % token)
+            subtitles=subtitle_url, license_url=URL_LICENCE_KEY % token,
+            # The replay manifest contains both HEVC and H.264, and IS Adaptive
+            # picks HEVC by default, which crashes the Amlogic decoder on Kodi 18
+            # (Android 6). Force H.264 (patched IS Adaptive property). The live
+            # stream uses a different manifest and is left untouched.
+            input_stream_properties={'preferred_video_codec': 'h264'})
 
     return False
 

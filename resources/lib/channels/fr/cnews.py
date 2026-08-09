@@ -38,7 +38,10 @@ except Exception:
     URLLIB3_VERSION = None
 
 if URLLIB3_VERSION == "2.2.3":
-    from urllib.request import urlopen, Request
+    try:
+        from urllib.request import urlopen, Request
+    except ImportError:
+        from urllib2 import urlopen, Request
 
 # num Page
 
