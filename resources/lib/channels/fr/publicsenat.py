@@ -22,7 +22,7 @@ from resources.lib.menu_utils import item_post_treatment
 
 URL_ROOT = 'https://www.publicsenat.fr'
 
-URL_LIVE_SITE = URL_ROOT + '/direct'
+URL_DAILYMOTION_LIVE = 'https://api.dailymotion.com/user/publicsenat/videos'
 
 URL_CATEGORIES = URL_ROOT + '/recherche/type/episode/field_theme/%s?sort_by=pse_search_date_publication'
 # categoriesId
@@ -122,9 +122,13 @@ def get_video_url(plugin,
 @Resolver.register
 def get_live_url(plugin, item_id, **kwargs):
 
-    resp = urlquick.get(URL_LIVE_SITE,
-                        headers={'User-Agent': web_utils.get_random_ua()},
+    # The website now builds the (new) Dailymotion player client-side, so the
+    # live video id is no longer in the page: ask Dailymotion's public API for
+    # the current live of the Public Sénat account. The live is
+    # domain-restricted, hence the embedder.
+    resp = urlquick.get(URL_DAILYMOTION_LIVE,
+                        params={'filters': 'live', 'fields': 'id', 'limit': 1},
                         max_age=-1)
-    video_id = re.compile(
-        r'www.dailymotion.com/embed/video/(.*?)[\?\"]').findall(resp.text)[0]
-    return resolver_proxy.get_stream_dailymotion(plugin, video_id, False)
+    video_id = resp.json()['list'][0]['id']
+    return resolver_proxy.get_stream_dailymotion(plugin, video_id, False,
+                                                 embeder=URL_ROOT)
