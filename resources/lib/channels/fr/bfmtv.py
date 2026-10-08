@@ -17,7 +17,6 @@ from resources.lib import download, resolver_proxy, web_utils
 from resources.lib.addon_utils import Quality
 from resources.lib.menu_utils import item_post_treatment
 from resources.lib.py_utils import old_div
-from resources.lib.channels.fr import rmcplus
 
 # TO DO
 
@@ -193,15 +192,6 @@ def get_video_url(plugin,
 
 @Resolver.register
 def get_live_url(plugin, item_id, **kwargs):
-
-    try:
-        if (plugin.setting.get_string('rmcplus.login') != '') and \
-           (plugin.setting.get_string('rmcplus.password') != '') and \
-           (item_id in ['BFM TV', 'BFM Business', 'BFM2']):
-            return rmcplus.bfm_player(plugin, item_id)
-
-    except Exception:
-        pass
 
     if item_id == 'BFM_regions':
         item_id = kwargs.get('language', Script.setting['BFM_regions.language'])
