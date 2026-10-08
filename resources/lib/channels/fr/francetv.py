@@ -44,6 +44,13 @@ URL_API_FRONT = utils.urljoin_partial("http://api-front.yatta.francetv.fr")
 
 @Route.register
 def francetv_root(plugin, **kwargs):
+    # Lives
+    item = Listitem()
+    item.label = 'Directs'
+    item.set_callback(get_multi_live_url)
+    item_post_treatment(item)
+    yield item
+
     # Channels
     item = Listitem()
     item.label = Script.localize(30006)
@@ -161,21 +168,16 @@ def set_item_callback_based_on_type(item, type_, j, next_page_item=None):
             return True
 
     if type_ == 'region':
-        marker = j.get('marker', None)
-        zone = None
-        if marker is not None:
-            page = marker.get('page', None)
-            if page is not None:
-                zone = page.split('::')[0]
-        if zone is None:
-            item.set_callback(outre_mer_root, j['region_path'])
-        else:
-            if zone == 'region':
+        if j.get('region_path'):
+            if j['region_path'].startswith('france-3'):
                 path = j['region_path'] + '/metropole'
-            else:
+                item.set_callback(grab_json_collections, URL_API_MOBILE('/apps/regions/%s' % path))
+            elif j['region_path'].startswith('la1ere'):
                 path = j['region_path'] + '/outre-mer'
-            item.set_callback(grab_json_collections, URL_API_MOBILE('/apps/regions/%s' % path))
-        item_post_treatment(item)
+                item.set_callback(grab_json_collections, URL_API_MOBILE('/apps/regions/%s' % path))
+            else:
+                item.set_callback(outre_mer_root, j['region_path'])
+            item_post_treatment(item)
         return True
 
     if type_ == 'categories':
@@ -277,6 +279,8 @@ def populate_video_item(item, video):
 
     if "saison" in video and video['saison']:
         item.info['season'] = video['saison']
+    elif "season" in video and video['season']:
+        item.info['season'] = video['season']
 
     if "episode" in video and video['episode']:
         # Now we know for sure we are dealing with an episode
@@ -466,7 +470,7 @@ def get_live_url(plugin, item_id, **kwargs):
 
 
 @Route.register
-def get_multi_live_url(plugin, item_id, **kwargs):
+def get_multi_live_url(plugin, **kwargs):
     params = {'platform': 'apps'}
     resp = urlquick.get(URL_API_MOBILE('/generic/directs'), params=params, max_age=-1)
     json_parser = json.loads(resp.text)
@@ -484,15 +488,16 @@ def get_multi_live_url(plugin, item_id, **kwargs):
                 populate_images(item, items['program']['images'])
             channel_label = items['channel'].get("label")
             if channel_program and channel_episode_title:
-                channel_label = channel_label + ' - ' + channel_program + ' - ' + channel_episode_title
+                channel_titre = '{}    [COLOR orange]{} - {}[/COLOR]'.format(channel_label, channel_program, channel_episode_title)
             elif channel_program:
-                channel_label = channel_label + ' - ' + channel_program
+                channel_titre = '{}    [COLOR orange]{}[/COLOR]'.format(channel_label, channel_program)
             elif channel_episode_title:
-                channel_label = channel_label + ' - ' + channel_episode_title
+                channel_titre = '{}    [COLOR orange]{}[/COLOR]'.format(channel_label, channel_episode_title)
             channel_id = items['channel'].get("si_id")
 
             at_least_one_item = True
             item.label = channel_label
+            item.info['title'] = channel_titre
             item.set_callback(get_multi_video_url, channel_id)
             item_post_treatment(item)
             yield item
@@ -505,15 +510,16 @@ def get_multi_live_url(plugin, item_id, **kwargs):
                 populate_images(item, items['program']['images'])
             channel_label = items['partner'].get("label")
             if channel_program and channel_episode_title:
-                channel_label = channel_label + ' - ' + channel_program + ' - ' + channel_episode_title
+                channel_titre = '{}    [COLOR orange]{} - {}[/COLOR]'.format(channel_label, channel_program, channel_episode_title)
             elif channel_program:
-                channel_label = channel_label + ' - ' + channel_program
+                channel_titre = '{}    [COLOR orange]{}[/COLOR]'.format(channel_label, channel_program)
             elif channel_episode_title:
-                channel_label = channel_label + ' - ' + channel_episode_title
+                channel_titre = '{}    [COLOR orange]{}[/COLOR]'.format(channel_label, channel_episode_title)
             channel_id = items['partner'].get("si_id")
 
             at_least_one_item = True
             item.label = channel_label
+            item.info['title'] = channel_titre
             item.set_callback(get_multi_video_url, channel_id)
             item_post_treatment(item)
             yield item

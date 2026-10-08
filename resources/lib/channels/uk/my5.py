@@ -107,8 +107,8 @@ def getdata():
             sout = sout + chr(k)
         y = y + 1
 
-    matches = re.compile(r'([A-Za-z0-9+/]{22}==).*?([A-Za-z0-9+/]{22}==)').findall(sout)
-    return matches[0]
+    matches = re.findall(r'(?:[\W_][\W_]|^)([A-Za-z0-9+/]{22}==)(?:[\W_][\W_]|$)', sout)
+    return matches
 
 
 def ivdata(item_id, media_type, keys):
@@ -619,6 +619,8 @@ def parse_watchable(watchable, from_episode_list=False):
                       standalone="no")
     mylist_ctx_mnu(item, watchable['sh_id'], show_title)
     item_post_treatment(item)
+    # Ensure callback urls are the same for identical items, regardless of the title text.
+    item.params['_title_'] = ''
     return item
 
 

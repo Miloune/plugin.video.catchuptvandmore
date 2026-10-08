@@ -26,17 +26,24 @@ URL_API_HOME = URL_API + '/home/classic'
 URL_API_MEDIA = URL_API + '/video/media/'
 
 GENERIC_HEADERS = {'User-Agent': web_utils.get_random_ua()}
+PARAMS = {
+    'platform': 'ctv',
+    'version': '1.22',
+    'site': 'lequipe.play',
+}
 
 
 @Route.register
 def list_categories(plugin, item_id, **kwargs):
-    params = {
-        'path': '/tv/',
-        'platform': 'ctv',
-        'version': '1.17',
-        'site': 'lequipe.play',
-    }
-    response = urlquick.get(URL_API_HOME, headers=GENERIC_HEADERS, params=params, max_age=-1)
+    # Lives
+    item = Listitem()
+    item.label = 'Directs'
+    item.set_callback(get_multi_live_url)
+    item_post_treatment(item)
+    yield item
+
+    PARAMS['path'] = '/tv/'
+    response = urlquick.get(URL_API_HOME, headers=GENERIC_HEADERS, params=PARAMS, max_age=-1)
     json_parser = json.loads(response.content)
 
     for category_datas in json_parser['content']['feed']['items']:
@@ -106,13 +113,8 @@ def list_programs(plugin, datas, **kwargs):
 @Route.register
 def list_videos(plugin, video_url, **kwargs):
     again_program = False
-    params = {
-        'path': video_url.replace('https://www.lequipe.fr', ''),
-        'platform': 'ctv',
-        'version': '1.17',
-        'site': 'lequipe.play',
-    }
-    response = urlquick.get(URL_API_HOME, headers=GENERIC_HEADERS, params=params, max_age=-1)
+    PARAMS['path'] = video_url.replace('https://www.lequipe.fr', '')
+    response = urlquick.get(URL_API_HOME, headers=GENERIC_HEADERS, params=PARAMS, max_age=-1)
     json_parser = json.loads(response.content)
 
     for video_datas in json_parser['content']['feed']['items']:
@@ -157,13 +159,8 @@ def list_videos(plugin, video_url, **kwargs):
 
 @Resolver.register
 def get_video_url(plugin, video_url, download_mode=False, **kwargs):
-    params = {
-        'platform': 'ctv',
-        'version': '1.2',
-        'site': 'lequipe.play',
-    }
     media_id = re.compile(r'(\d*)$').findall(video_url)[0]
-    response = urlquick.get(URL_API_MEDIA + media_id, headers=GENERIC_HEADERS, params=params, max_age=-1)
+    response = urlquick.get(URL_API_MEDIA + media_id, headers=GENERIC_HEADERS, params=PARAMS, max_age=-1)
     json_parser = json.loads(response.content)
 
     for video_datas in json_parser['content']['feed']['items']:
@@ -186,26 +183,51 @@ def get_live_url(plugin, item_id, **kwargs):
 
 
 @Route.register
-def get_multi_live_url(plugin, item_id, **kwargs):
-    resp = urlquick.get(URL_LIVE, headers=GENERIC_HEADERS, max_age=-1)
-    root = resp.parse()
-    for video_list in root.iterfind('.//a[@class="Link"]'):
+def get_multi_live_url(plugin, **kwargs):
+    PARAMS['path'] = '/'
+    PARAMS['platform'] = 'android'
+    response = urlquick.get(URL_API + '/home/classic', headers=GENERIC_HEADERS, params=PARAMS, max_age=-1)
+    json_parser = json.loads(response.content)
+
+    for video_datas in json_parser['content']['feed']['items'][0]['items']:
+        video_item = video_title = video_desc = video_image = video_id = ""
+        video_islive = False
+        program_type = video_datas.get('__type')
+        if program_type == "carousel_widget":
+            continue
+        if video_datas.get('video'):
+            video_id = video_datas['video'].get('id')
+            video_islive = video_datas['video'].get('is_live', False)
+        if not video_islive or any(c in video_id for c in ['eurosport', 'ligue1']):
+            continue
+        if video_datas.get('content'):
+            video_title = video_datas['content'].get('title')
+            video_desc = video_datas['content'].get('description')
+            video_image = video_datas['content']['image'].get('url')
+            video_image = video_image.replace('{width}', '534').replace('{height}', '300')
+            video_items = []
+            if video_datas['content'].get('breadcrumb'):
+                for titre_datas in video_datas['content']['breadcrumb']:
+                    video_items.append(titre_datas.get('text'))
+            if len(video_items) == 2:
+                video_item = video_items[0] + ', ' + video_items[1]
+            elif len(video_items) == 1:
+                video_item = video_items[0]
+            else:
+                video_item = ""
+
         item = Listitem()
-        for div_title in video_list.iterfind('.//div'):
-            if div_title is not None and div_title.get('class') == "ArticleTags__items js-ob-internal-reco":
-                for d_title in div_title.iterfind('.//div[@class="ArticleTags__item"]'):
-                    if 'font' not in d_title.get('style'):
-                        item.label = d_title.text
-                item.info['plot'] = video_list.find('.//h2[@class="ColeaderWidget__title"]').text
-                item.art["thumb"] = item.art["thumb"] = video_list.find(".//img").get('src')
-                video_id = re.compile(r'live\/(.*?)$').findall(video_list.get('href'))[0]
-                item.set_callback(get_multi_video_url, item_id, video_id=video_id)
-                item_post_treatment(item)
-                yield item
+        item.label = video_item
+        item.info['title'] = '{}    [COLOR orange]{}[/COLOR]'.format(video_item, video_title)
+        item.info['plot'] = video_desc
+        item.art["thumb"] = item.art["thumb"] = video_image
+        item.set_callback(get_multi_video_url, video_id=video_id)
+        item_post_treatment(item)
+        yield item
 
 
 @Resolver.register
-def get_multi_video_url(plugin, item_id, video_id, download_mode=False, **kwargs):
+def get_multi_video_url(plugin, video_id, download_mode=False, **kwargs):
 
     embeder = EMBEDER_URL % video_id
     return resolver_proxy.get_stream_dailymotion(plugin, video_id, download_mode, embeder)
