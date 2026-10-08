@@ -198,6 +198,12 @@ Python 3 introduit. Procédure éprouvée :
 > Manager (`userdata/addon_data/service.iptv.manager/playlist.m3u8`) : elle
 > embarque les anciennes routes et doit être patchée ou régénérée, sinon zapper
 > la chaîne PVR produit `RouteMissing: unable to import route module: ...`.
+>
+> Les workflows amont (`.github/workflows/ci.yml`, `pr.yml`, `release.yml`)
+> portent un garde `if: github.repository_owner == 'Catch-up-TV-and-More'` : ils
+> ne tournent que sur le dépôt amont, car leurs jobs `update-repo`/simulateurs
+> dépendent de secrets et de dépôts amont. Le pipeline de ce fork est
+> `.github/workflows/py27.yml`. **Conserver les gardes lors des merges.**
 
 ## Packaging & déploiement
 

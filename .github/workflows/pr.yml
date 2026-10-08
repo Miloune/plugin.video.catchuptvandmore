@@ -1,5 +1,7 @@
 name: Pull request check
 
+# Fork guard: upstream-only workflow. On forks every job is skipped; the fork
+# pipeline is .github/workflows/py27.yml. Keep the guards when merging upstream.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -10,6 +12,7 @@ jobs:
   # Flake
   flake:
     name: Run flake8 linter
+    if: github.repository_owner == 'Catch-up-TV-and-More'
     runs-on: ubuntu-latest
     steps:
       - name: Check out plugin repository
@@ -26,6 +29,7 @@ jobs:
   # Test add-on python files
   test-plugin-modules:
     name: Load each Python files of the addon to detect errors
+    if: github.repository_owner == 'Catch-up-TV-and-More'
     needs: flake
     runs-on: ubuntu-latest
     steps:

@@ -1,6 +1,9 @@
 name: CI
 
-# Controls when the action will run.
+# Fork guard: these jobs are maintained for the upstream repository and some
+# need upstream secrets/repos (update-repo, simulators). On forks every job is
+# skipped; the fork pipeline is .github/workflows/py27.yml. Keep the guards
+# when merging upstream.
 on: push
 
 jobs:
@@ -8,6 +11,7 @@ jobs:
   # Flake
   flake:
     name: Run flake8 linter
+    if: github.repository_owner == 'Catch-up-TV-and-More'
     runs-on: ubuntu-latest
     steps:
       - name: Check out plugin repository
@@ -27,6 +31,7 @@ jobs:
   # Test add-on python files
   test-plugin-modules:
     name: Load each Python files of the addon to detect errors
+    if: github.repository_owner == 'Catch-up-TV-and-More'
     needs: flake
     runs-on: ubuntu-latest
     steps:
@@ -70,6 +75,7 @@ jobs:
   # Update repository.catchuptvandmore
   update-repo:
     name: Update repository.catchuptvandmore
+    if: github.repository_owner == 'Catch-up-TV-and-More'
     needs: flake
     runs-on: ubuntu-latest
     steps:
@@ -94,6 +100,7 @@ jobs:
   # Test the plugin with our Kodi simulator
   kodi-simulator-1:
     name: "Explore random replay channel #1"
+    if: github.repository_owner == 'Catch-up-TV-and-More'
     needs: update-repo
     runs-on: ubuntu-latest
     steps:
@@ -119,6 +126,7 @@ jobs:
 
   kodi-simulator-2:
     name: "Explore random website"
+    if: github.repository_owner == 'Catch-up-TV-and-More'
     needs: kodi-simulator-1
     runs-on: ubuntu-latest
     steps:
