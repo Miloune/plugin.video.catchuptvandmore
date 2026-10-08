@@ -382,6 +382,10 @@ def get_stream_dailymotion(plugin,
         ('User-Agent', web_utils.get_random_windows_ua()),
         ('Referer', 'https://www.dailymotion.com/'),
         ('Accept', '*/*'),
+        # Dailymotion CDN answers 403 on the manifest without the browser
+        # Priority Hints header (notably from French IPs). Same fix as
+        # streamlink commit 6c5cc774. Variant/segments do not need it.
+        ('priority', 'u=1, i'),
         ('x-cache-internal', 'true'),
         ('x-cache-max-age', '-1'),
     ]
