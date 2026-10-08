@@ -25,17 +25,20 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 echo "== archive de HEAD (contenu déployable, LF) =="
-git archive HEAD | tar -x -C "$TMP"
+TREE="$TMP/tree"
+mkdir -p "$TREE"
+git archive HEAD | tar -x -C "$TREE"
 
 echo "== inventaire de l'appareil =="
 adb shell "cd '$DEV' && find . -type f -exec md5sum {} \;" > "$TMP/device.md5"
 
-python3 - "$TMP" <<'PY'
+python3 - "$TMP" "$TREE" <<'PY'
 import hashlib
 import os
 import sys
 
 tmp = sys.argv[1]
+root = sys.argv[2]
 
 
 def md5(path):
@@ -59,22 +62,24 @@ for line in open(os.path.join(tmp, 'device.md5')):
     if path.endswith(('.pyo', '.pyc')):
         continue
     seen.add(path)
-    local = os.path.join(tmp, path)
+    local = os.path.join(root, path)
     if not os.path.exists(local):
         device_only.append(path)
     elif md5(local) != digest:
         push.append(path)
 
 missing = []
-for dirpath, dirnames, filenames in os.walk(tmp):
+for dirpath, dirnames, filenames in os.walk(root):
     for name in filenames:
-        rel = os.path.relpath(os.path.join(dirpath, name), tmp)
+        rel = os.path.relpath(os.path.join(dirpath, name), root)
         if rel not in seen:
             missing.append(rel)
 
 with open(os.path.join(tmp, 'to_push.txt'), 'w') as f:
     f.write('\n'.join(sorted(push)))
 print('fichiers divergents (à pousser) : %d' % len(push))
+for path in sorted(push):
+    print('  ' + path)
 print('fichiers présents seulement sur l\'appareil : %d' % len(device_only))
 for path in sorted(device_only):
     print('  ' + path)
@@ -94,7 +99,7 @@ N=0
 for f in "${FILES[@]}"; do
     [ -z "$f" ] && continue
     adb shell "rm -f '$DEV/$f' '${DEV}/${f%.py}.pyc' '${DEV}/${f%.py}.pyo'" >/dev/null
-    adb push "$TMP/$f" "$DEV/$f" >/dev/null
+    adb push "$TREE/$f" "$DEV/$f" >/dev/null
     N=$((N + 1))
     if [ $((N % 50)) -eq 0 ]; then echo "   ... $N"; fi
 done
@@ -105,12 +110,13 @@ adb shell "find '$DEV' -name '*.pyo' -exec rm -f {} \; ; find '$DEV' -name '*.py
 
 echo "== vérification md5 =="
 adb shell "cd '$DEV' && find . -type f -exec md5sum {} \;" > "$TMP/device_after.md5"
-python3 - "$TMP" <<'PY'
+python3 - "$TMP" "$TREE" <<'PY'
 import hashlib
 import os
 import sys
 
 tmp = sys.argv[1]
+root = sys.argv[2]
 
 
 def md5(path):
@@ -131,7 +137,7 @@ for line in open(os.path.join(tmp, 'device_after.md5')):
         path = path[2:]
     if path.endswith(('.pyo', '.pyc')):
         continue
-    local = os.path.join(tmp, path)
+    local = os.path.join(root, path)
     if not os.path.exists(local) or md5(local) != digest:
         left += 1
         print('encore divergent : ' + path)
