@@ -1,0 +1,16 @@
+name: Python 2.7 audit
+
+# Rejette la syntaxe et les API Python 3 uniquement que l'amont introduit
+# régulièrement (voir AGENTS.md). Complète ci.yml, qui tourne en Python 3 et
+# ne verrait donc pas ces régressions.
+on: [push, workflow_dispatch]
+
+jobs:
+  py27-audit:
+    name: Reject Python 3-only syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out plugin repository
+        uses: actions/checkout@v7
+      - name: Run Python 2.7 audit
+        run: python3 tools/py27_audit.py .

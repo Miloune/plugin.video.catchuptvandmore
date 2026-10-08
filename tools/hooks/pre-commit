@@ -1,0 +1,18 @@
+#!/bin/sh
+# Refuse les commits qui introduisent de la syntaxe ou des API Python 3
+# uniquement (voir AGENTS.md). Installé par tools/install_git_hooks.sh.
+ROOT="$(git rev-parse --show-toplevel)" || exit 0
+cd "$ROOT" || exit 0
+
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "pre-commit: python3 introuvable, audit Python 2.7 ignoré" >&2
+    exit 0
+fi
+
+if ! OUTPUT=$(python3 tools/py27_audit.py . 2>&1); then
+    echo "pre-commit: audit Python 2.7 en échec (voir AGENTS.md) :" >&2
+    printf '%s\n' "$OUTPUT" | tail -n 20 >&2
+    echo "commit refusé. Contournement exceptionnel : git commit --no-verify" >&2
+    exit 1
+fi
+exit 0
