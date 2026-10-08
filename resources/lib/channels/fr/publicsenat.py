@@ -15,6 +15,13 @@ import urlquick
 from resources.lib import resolver_proxy, web_utils
 from resources.lib.menu_utils import item_post_treatment
 
+try:
+    from html import unescape
+except ImportError:
+    from six.moves.html_parser import HTMLParser
+    HTML_PARSER = HTMLParser()
+    unescape = HTML_PARSER.unescape
+
 
 # TODO
 # Get First-diffusion (date of replay Video)
@@ -22,85 +29,63 @@ from resources.lib.menu_utils import item_post_treatment
 
 URL_ROOT = 'https://www.publicsenat.fr'
 
+# The website is now a WordPress site exposing a REST API: replays are 'show'
+# posts attached to a 'program' taxonomy term.
+URL_API = URL_ROOT + '/wp-json/wp/v2'
+
 URL_DAILYMOTION_LIVE = 'https://api.dailymotion.com/user/publicsenat/videos'
 
-URL_CATEGORIES = URL_ROOT + '/recherche/type/episode/field_theme/%s?sort_by=pse_search_date_publication'
-# categoriesId
-
-CATEGORIES = {
-    'politique-4127': 'Politique',
-    'societe-4126': 'Société',
-    'debat-4128': 'Débat',
-    'parlementaire-53511': 'Parlementaire'
-}
+PER_PAGE = 20
 
 
 @Route.register
-def list_categories(plugin, item_id, **kwargs):
+def list_programs(plugin, item_id, page='1', **kwargs):
     """
-    Build categories listing
-    - Tous les programmes
-    - Séries
-    - Informations
-    - ...
+    Build the replay programs listing (the 'program' taxonomy, most active
+    first).
     """
-    for category_id, category_name in list(CATEGORIES.items()):
-        category_url = URL_CATEGORIES % category_id
+    resp = urlquick.get(URL_API + '/program',
+                        params={'per_page': PER_PAGE, 'page': page,
+                                'orderby': 'count', 'order': 'desc'},
+                        max_age=-1)
 
+    for program in resp.json():
         item = Listitem()
-        item.label = category_name
+        item.label = unescape(program['name'])
         item.set_callback(list_videos,
                           item_id=item_id,
-                          category_url=category_url,
-                          page='0')
+                          program_id=program['id'],
+                          page='1')
         item_post_treatment(item)
         yield item
 
+    total_pages = int(resp.headers.get('X-WP-TotalPages', '1'))
+    if int(page) < total_pages:
+        yield Listitem.next_page(item_id=item_id, page=str(int(page) + 1))
+
 
 @Route.register
-def list_videos(plugin, item_id, category_url, page, **kwargs):
+def list_videos(plugin, item_id, program_id, page='1', **kwargs):
+    resp = urlquick.get(URL_API + '/show',
+                        params={'program': program_id, 'per_page': PER_PAGE,
+                                'page': page, 'orderby': 'date',
+                                'order': 'desc'},
+                        max_age=-1)
 
-    replay_paged_url = category_url + '&page=' + page
-    resp = urlquick.get(replay_paged_url)
-    root = resp.parse("div", attrs={"class": "view-content"})
+    for episode in resp.json():
+        item = Listitem()
+        item.label = unescape(episode['title']['rendered'])
+        item.info['date'] = episode.get('date', '')[:10]
+        item.set_callback(get_video_url,
+                          item_id=item_id,
+                          video_url=episode['link'])
+        item_post_treatment(item, is_playable=True, is_downloadable=True)
+        yield item
 
-    for video_datas in root.iterfind(".//article"):
-        if len(video_datas.findall(".//div[@class='wrapper-duree']")) > 0:
-            list_texts = video_datas.findall(
-                ".//div[@class='field-item even']")
-            if len(list_texts) > 2:
-                if list_texts[2].text is not None:
-                    video_title = list_texts[1].text + ' - ' + list_texts[2].text
-                else:
-                    video_title = list_texts[1].text
-            elif len(list_texts) > 1:
-                video_title = list_texts[1].text
-            else:
-                video_title = ''
-            video_image = video_datas.find('.//img').get('src')
-            video_plot = ''
-            if len(list_texts) > 3:
-                video_plot = list_texts[3].text
-            video_duration = int(
-                video_datas.findall(".//div[@class='wrapper-duree']")
-                [0].text) * 60
-            video_url = URL_ROOT + video_datas.findall('.//a')[1].get('href')
-
-            item = Listitem()
-            item.label = video_title
-            item.art['thumb'] = item.art['landscape'] = video_image
-            item.info['duration'] = video_duration
-            item.info['plot'] = video_plot
-
-            item.set_callback(get_video_url,
-                              item_id=item_id,
-                              video_url=video_url)
-            item_post_treatment(item, is_playable=True, is_downloadable=True)
-            yield item
-
-    yield Listitem.next_page(item_id=item_id,
-                             category_url=category_url,
-                             page=str(int(page) + 1))
+    total_pages = int(resp.headers.get('X-WP-TotalPages', '1'))
+    if int(page) < total_pages:
+        yield Listitem.next_page(item_id=item_id, program_id=program_id,
+                                 page=str(int(page) + 1))
 
 
 @Resolver.register
@@ -114,7 +99,7 @@ def get_video_url(plugin,
                         headers={'User-Agent': web_utils.get_random_ua()},
                         max_age=-1)
     video_id = re.compile(
-        r'www.dailymotion.com/embed/video/(.*?)[\?\"]').findall(resp.text)[0]
+        r"""dailymotion\.com/embed/video/([^"'?&]+)""").findall(resp.text)[0]
     return resolver_proxy.get_stream_dailymotion(plugin, video_id,
                                                  download_mode)
 

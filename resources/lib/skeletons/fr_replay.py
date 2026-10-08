@@ -92,7 +92,7 @@ menu = {
         "order": 9,
     },
     "publicsenat": {
-        "route": "/resources/lib/channels/fr/publicsenat:list_categories",
+        "route": "/resources/lib/channels/fr/publicsenat:list_programs",
         "label": "Public Sénat",
         "thumb": "channels/fr/publicsenat.png",
         "fanart": "channels/fr/publicsenat_fanart.jpg",
