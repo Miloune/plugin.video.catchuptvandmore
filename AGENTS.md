@@ -14,6 +14,10 @@ l'environnement est **figé** et **ne peut pas être mis à jour** :
 > En résumé : on est **strictement bloqué sur Android 6 / Kodi 18.9 / Python 2.7**.
 > Ce sont des contraintes dures, non négociables. Tout le code de ce dépôt doit
 > rester exécutable tel quel par l'interpréteur Python 2.7 de Kodi 18.9.
+>
+> Limites de lecture des flux sur cette cible (ISA 2.4.8 / DRM) :
+> [`docs/KODI18_LIMITATIONS.md`](docs/KODI18_LIMITATIONS.md) — en bref :
+> DASH/CENC et HLS clair OK, HLS `SAMPLE-AES` non (RMC+ direct p. ex.).
 
 ## Règles de compatibilité Python 2.7 (OBLIGATOIRES)
 
@@ -46,8 +50,11 @@ introduit régulièrement de la syntaxe Python 3 uniquement. Ce fork doit
 | `xbmcvfs.makeLegalFilename(...)`               | `xbmc.makeLegalFilename(...)` (l'API Kodi 18)              |
 
 > Note : `str.split`/`rsplit` **avec `maxsplit=`** en mot-clé et le **subscript
-> d'un objet match** (`m[1]`) sont invisibles à un simple grep de f-strings ;
-> utiliser l'audit AST (voir plus bas) qui les détecte de façon fiable.
+> d'un objet match** (`m[1]`) sont invisibles à un simple grep de f-strings.
+> `maxsplit=` et les API runtime py3 (`bytes(x, encoding=...)`,
+> `open(..., encoding=)`, `str.removeprefix`, etc.) sont détectés par la couche
+> « runtime » de `tools/py27_audit.py` ; le subscript `m[1]` reste à vérifier
+> en relecture (l'AST ne suit pas le type de l'objet).
 
 ### Règle spéciale : `return <valeur>` dans un générateur
 
@@ -96,29 +103,33 @@ dépendance non satisfaite empêche **toute l'installation** de l'addon
 
 ## Vérification avant packaging
 
-Aucun binaire Python 2 n'est requis pour valider la syntaxe. La méthode fiable
-est un **audit basé sur l'AST de Python 3** qui détecte tous les nœuds Python 3
-uniquement (`JoinedStr`/f-strings, `YieldFrom`, `AnnAssign` et annotations de
-fonction, `NamedExpr`/walrus, `async`, `nonlocal`, `from __future__ import
-annotations`, etc.).
+Aucun binaire Python 2 n'est requis pour valider la syntaxe. La référence est
+`tools/py27_audit.py`, à deux couches :
+
+1. **AST Python 3** : nœuds py3 uniquement (f-strings, `yield from`,
+   annotations, walrus, `async`, `nonlocal`, `return <valeur>` dans un
+   générateur, matmul, arguments keyword-only/position-only, starred
+   assignment, `raise ... from`, `{**d}`, unpacking multiple, séparateurs
+   numériques…).
+2. **Contrôles runtime** (commentaires et chaînes masqués) : API py3 invisibles
+   à l'AST (`bytes(x, encoding=...)`, `open(..., encoding=...)`,
+   `str.removeprefix`, `maxsplit=`, exceptions py3, etc.) et imports
+   `urllib.parse/request/error` + `http.cookiejar` non gardés par un
+   `try/except ImportError`.
 
 ```sh
 # Doit afficher « 0 issue(s) » :
 python3 tools/py27_audit.py .
 ```
 
-En complément, quelques greps ciblés :
-
-```sh
-rg -n "(?:^|[^A-Za-z0-9_])f[\"'][^\"']*\{" --type py .   # f-strings
-rg -n "yield from" --type py .                            # yield from
-rg -n "xbmcvfs\.translatePath" --type py .                # API Kodi 19+
-rg -n "\.timestamp\(\)|timezone\.utc" --type py .         # datetime py3
-```
+Le hook `pre-commit` l'exécute à chaque commit
+(`tools/install_git_hooks.sh` à lancer une fois) et le workflow
+`.github/workflows/py27.yml` en CI. Le subscript d'un objet match (`m[1]`,
+py3.6+) reste à vérifier en relecture : l'AST ne suit pas le type de l'objet.
 
 > Les `SyntaxWarning: invalid escape sequence` (regex sans préfixe `r''`) ne
 > sont **pas** des erreurs : ces chaînes fonctionnent sur Python 2.7. Ne pas
-> les « corriger » sauf demande explicite (bruit de diff massif).
+> les « corriger » (l'audit les masque déjà).
 
 ## Synchronisation avec l'amont (merge + rétro-portage)
 
@@ -162,17 +173,17 @@ Python 3 introduit. Procédure éprouvée :
    ```
 
 5. **Re-porter en Python 2.7** tout le code amont nouvellement introduit, en
-   appliquant les règles du tableau ci-dessus. L'audit AST est la source de
-   vérité — il liste précisément les fichiers/lignes à corriger :
+   appliquant les règles du tableau ci-dessus. `tools/py27_audit.py` liste
+   précisément les fichiers/lignes à corriger (imports `urllib` non gardés
+   inclus) :
 
    ```sh
    python3 tools/py27_audit.py resources/     # -> corriger jusqu'à « 0 issue »
    ```
 
-   Compléter par l'audit sémantique que l'AST **ne voit pas** : les imports
-   `urllib.parse/request` et `http.cookiejar` doivent tous rester gardés par un
-   `try/except ImportError` (grep sur les fichiers du merge), et aucun fichier
-   supprimé par l'amont ne doit subsister.
+   Vérifier ensuite qu'aucun fichier supprimé par l'amont ne subsiste, puis
+   valider sur l'appareil avec `tools/device_compile_test.sh` (syntaxe py2.7
+   réelle) avant de committer.
 
 6. **Committer le merge** en ne stageant **que** les fichiers effectivement
    touchés (résolutions de conflit + re-portages) :
@@ -181,9 +192,12 @@ Python 3 introduit. Procédure éprouvée :
    git add <fichiers modifiés> && git commit
    ```
 
-> Un fichier **supprimé** par l'amont (ex. `weo.py`) doit aussi être retiré de
-> l'appareil (`.py` **et** `.pyc`) lors du déploiement, sinon un module fantôme
-> subsiste.
+> Un fichier **supprimé** par l'amont (ex. `weo.py`, `rmcbfmplay.py`) doit aussi
+> être retiré de l'appareil (`.py`, **`.pyo`** et `.pyc`) lors du déploiement,
+> sinon un module fantôme subsiste. Penser aussi à la playlist générée par IPTV
+> Manager (`userdata/addon_data/service.iptv.manager/playlist.m3u8`) : elle
+> embarque les anciennes routes et doit être patchée ou régénérée, sinon zapper
+> la chaîne PVR produit `RouteMissing: unable to import route module: ...`.
 
 ## Packaging & déploiement
 
@@ -203,24 +217,9 @@ Python 3 introduit. Procédure éprouvée :
 > La forme correcte : **inclure les entrées de répertoire** avec le mode
 > `S_IFDIR | 0755`, et les fichiers en `0644`.
 >
-> Un exemple de script se trouve hors dépôt (`/tmp/opencode/build_zip.py`) ;
-> l'essentiel :
->
-> ```python
-> import os, zipfile
-> with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as zf:
->     for d in sorted(dir_arcs):                       # dossiers d'abord
->         zi = zipfile.ZipInfo(d + "/")
->         zi.date_time = (2024, 1, 1, 0, 0, 0)
->         zi.external_attr = (0o40755 << 16) | 0x10     # dir 0755
->         zf.writestr(zi, b"")
->     for full, arc in files:                           # puis les fichiers
->         zi = zipfile.ZipInfo(arc.replace(os.sep, "/"))
->         zi.date_time = (2024, 1, 1, 0, 0, 0)
->         zi.external_attr = (0o100644 << 16)           # file 0644
->         zi.compress_type = zipfile.ZIP_DEFLATED
->         zf.writestr(zi, open(full, "rb").read())
-> ```
+> Le script est versionné : `python3 tools/build_zip.py [--output <zip>]`
+> (contenu `git archive HEAD`, entrées de répertoire 0755, fichiers 0644,
+> vérification intégrée des modes).
 >
 > Vérifications :
 > - `zipinfo <zip> | grep '/$'` → dossiers en `drwxr-xr-x` (jamais `drwxrwxrwx`).
@@ -253,13 +252,20 @@ fichier plus court laisse des débris en fin de fichier (déjà provoqué un
 `IndentationError`). Pousser depuis les **blobs committés** (`git show <rev>:path`)
 garantit du LF propre, sans bruit CRLF du montage Windows.
 
+> Pour synchroniser tout l'arbre d'un coup (ou vérifier l'intégrité sans rien
+> pousser), utiliser `tools/device_sync.sh --dry-run` puis
+> `tools/device_sync.sh` : il compare HEAD à l'appareil, `rm`+push les
+> différences et purge le bytecode.
+
 ```sh
 DEV=/sdcard/Android/data/org.xbmc.kodi/files/.kodi/addons/plugin.video.catchuptvandmore
 for f in <fichiers modifiés>; do
-  adb shell "rm -f '$DEV/$f' '${DEV}/${f}c'"      # .py + .pyc
+  adb shell "rm -f '$DEV/$f' '${DEV}/${f%.py}.pyc' '${DEV}/${f%.py}.pyo'"
   adb push "$f" "$DEV/$f"
 done
-# purger tous les .pyc résiduels de l'arbre (Android find n'a pas -delete) :
+# purger tous les .pyo et .pyc résiduels de l'arbre (Android find n'a pas
+# -delete) — Kodi 18 écrit des .pyo, le rm préalable évite les débris :
+adb shell "find '$DEV' -name '*.pyo' -exec rm -f {} \;"
 adb shell "find '$DEV' -name '*.pyc' -exec rm -f {} \;"
 adb shell "am force-stop org.xbmc.kodi" && sleep 2
 adb shell "am start -n org.xbmc.kodi/.Splash"
@@ -268,3 +274,15 @@ adb shell "am start -n org.xbmc.kodi/.Splash"
 Vérifier par `md5sum` des deux côtés, puis contrôler le log de démarrage
 (`.kodi/temp/kodi.log`) — absence de `Traceback`/`SyntaxError`/`ImportError` et
 version d'addon attendue dans les lignes `ADDON: ... installed`.
+
+### Vérification par le vrai Python 2.7 (appareil)
+
+`tools/device_compile_test.sh` compile tous les `.py` de l'addon installé avec
+le Python 2.7 embarqué de Kodi (service.py temporaire + `compile()`), puis
+restaure le service.py d'origine. À lancer après un merge/déploiement : il
+attrape la syntaxe py2.7 réelle, y compris ce que l'AST Python 3 ne voit pas.
+
+> ⚠️ Les `settings.xml` de `addon_data/` (et leurs backups `.bak-*`) contiennent
+> les identifiants en clair : ne jamais faire de `grep -r` sur `userdata` (les
+> valeurs finissent dans les logs/transcriptions). Contrôler par filtre
+> `SET`/`EMPTY` sans afficher les valeurs.

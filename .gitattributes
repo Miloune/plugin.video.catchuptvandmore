@@ -33,6 +33,8 @@ Makefile text eol=lf
 .github/ export-ignore
 .not_to_push/ export-ignore
 tools/ export-ignore
+AGENTS.md export-ignore
+docs/ export-ignore
 .gitattributes export-ignore
 .gitignore export-ignore
 .pylintrc export-ignore
