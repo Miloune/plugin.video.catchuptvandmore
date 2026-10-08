@@ -361,6 +361,23 @@ def get_easybroadcast_m3u8_stream(plugin, m3u8_url, token_authentication):
 
 
 # DailyMotion Part
+def __get_no_ticket_https_handler():
+    """HTTPS handler whose TLS context does not offer session tickets.
+
+    Dailymotion's CDN (Cloudflare) answers 403 to Python clients that offer
+    TLS session tickets (reproduced from French IPs). Disabling them fixes
+    playback. ``ssl.OP_NO_TICKET`` is missing from Kodi 18's Python 2.7.15
+    build, hence the numeric OpenSSL value (0x4000) as fallback.
+    """
+    try:
+        import ssl
+        context = ssl.create_default_context()
+        context.options |= getattr(ssl, 'OP_NO_TICKET', 0x4000)
+        return urllib_request.HTTPSHandler(context=context)
+    except Exception:
+        return None
+
+
 def get_stream_dailymotion(plugin,
                            video_id,
                            download_mode=False,
@@ -376,15 +393,21 @@ def get_stream_dailymotion(plugin,
     # Workaround to fix error 403
     url_dmotion = URL_DAILYMOTION_EMBED_2 % video_id + '?embedder=%s' % embeder
     cj = http_cookiejar.CookieJar()
-    opener = urllib_request.build_opener(urllib_request.HTTPCookieProcessor(cj))
+    handlers = [urllib_request.HTTPCookieProcessor(cj)]
+    https_handler = __get_no_ticket_https_handler()
+    if https_handler is not None:
+        handlers.append(https_handler)
+    opener = urllib_request.build_opener(*handlers)
 
     headers = [
         ('User-Agent', web_utils.get_random_windows_ua()),
         ('Referer', 'https://www.dailymotion.com/'),
         ('Accept', '*/*'),
-        # Dailymotion CDN answers 403 on the manifest without the browser
-        # Priority Hints header (notably from French IPs). Same fix as
-        # streamlink commit 6c5cc774. Variant/segments do not need it.
+        # Dailymotion CDN (Cloudflare) answers 403 to Python clients, notably
+        # from French IPs. Two fixes are needed: this browser Priority Hints
+        # header (same as streamlink commit 6c5cc774) and disabling TLS
+        # session tickets in the opener (see __get_no_ticket_https_handler).
+        # Variant playlists and segments do not need any of this.
         ('priority', 'u=1, i'),
         ('x-cache-internal', 'true'),
         ('x-cache-max-age', '-1'),
