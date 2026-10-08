@@ -292,15 +292,6 @@ menu = {
         "enabled": True,
         "order": 25
     },
-    "spectacles-et-culture": {
-        "resolver": "/resources/lib/channels/fr/francetv:get_live_url",
-        "label": "Culturebox",
-        "thumb": "channels/fr/culturebox.png",
-        "fanart": "channels/fr/culturebox_fanart.jpg",
-        "xmltv_id": "C3163.api.telerama.fr",
-        "enabled": True,
-        "order": 26
-    },
     "france-tv": {
         "route": "/resources/lib/channels/fr/francetv:get_multi_live_url",
         "label": "France TV  Multpile directs",
