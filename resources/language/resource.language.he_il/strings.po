@@ -1124,3 +1124,7 @@ msgstr ""
 msgctxt "#30896"
 msgid "No item"
 msgstr ""
+
+msgctxt "#30897"
+msgid "This live stream is DRM protected in HLS SAMPLE-AES, which is not supported on Kodi 18. Replay is still available."
+msgstr ""

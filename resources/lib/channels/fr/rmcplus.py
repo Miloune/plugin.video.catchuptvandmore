@@ -462,6 +462,14 @@ def get_live_url(plugin, item_id, ismulti=False, **kwargs):
     final_video_url = final_video_format = license_url = None
     for datas in resp.json().get('sections'):
         if datas.get('video'):
+            # Kodi 18 fork: RMC+ live DRM streams are HLS with SAMPLE-AES
+            # Widevine, which InputStream Adaptive 2.4.8 cannot open (it only
+            # handles DASH/CENC or clear HLS). Tell the user instead of letting
+            # the player fail with a cryptic error. Replay is DASH/CENC and is
+            # unaffected.
+            if datas['video'].get('drm') and datas['video'].get('format') == 'hls':
+                plugin.notify(plugin.localize(30600), plugin.localize(30897))
+                return False
             final_video_url = datas['video'].get('url')
             final_video_format = datas['video'].get('format')
             if final_video_format != 'hls':
