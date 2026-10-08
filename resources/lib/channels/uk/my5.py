@@ -114,7 +114,7 @@ def getdata():
 def ivdata(item_id, media_type, keys):
     timeStamp = str(int(time.time()))
     lic_full = LICC_URL % (media_type, item_id, timeStamp)
-    hmac_update = bytes(lic_full, encoding="utf-8")
+    hmac_update = lic_full.encode("utf-8")
     saved_swap = swap = Script.setting.get_boolean(SETTING_ID_KEYS_REVERSED)
 
     # Calculate hmac and make the request. On 403 response, try one more time with swapped keys.
