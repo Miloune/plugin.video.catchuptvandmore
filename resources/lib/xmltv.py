@@ -543,8 +543,17 @@ def download_xmltv_file(country_id, date, xmltv_fp):
         else:
             # Check if we have the last version of the file
             current_file_md5 = compute_md5(xmltv_fp)
-            remote_file_md5 = get_remote_xmltv_md5(country_id, date)
-            if current_file_md5 != remote_file_md5:
+            try:
+                remote_file_md5 = get_remote_xmltv_md5(country_id, date)
+            except Exception as e:
+                # The remote md5 can be transiently unavailable (upstream
+                # publication race, network hiccup). Letting it raise would
+                # make grab_programmes delete the cached file and drop the
+                # whole day of EPG, so keep the cached file instead.
+                Script.log('Failed to fetch remote xmltv md5 of {} ({}), keeping cached file'
+                           .format(country_id, e), lvl=Script.WARNING)
+                remote_file_md5 = None
+            if remote_file_md5 is not None and current_file_md5 != remote_file_md5:
                 Script.log("A new version of xmltv file of {} for today exists, let's download it".format(country_id))
                 need_to_downlod_xmltv_file = True
 
